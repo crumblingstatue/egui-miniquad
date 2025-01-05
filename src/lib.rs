@@ -99,6 +99,9 @@
 mod input;
 mod painter;
 
+pub use egui;
+pub use miniquad;
+
 // ----------------------------------------------------------------------------
 
 /// Required by `getrandom` crate.
