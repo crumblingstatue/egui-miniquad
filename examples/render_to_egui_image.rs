@@ -1,5 +1,5 @@
 use egui::load::SizedTexture;
-use glam::{vec3, EulerRot, Mat4};
+use glam::{EulerRot, Mat4, vec3};
 use {egui_miniquad as egui_mq, miniquad as mq};
 
 struct Stage {
