@@ -274,7 +274,7 @@ impl EguiMq {
         let delta = egui::vec2(dx, dy);
 
         self.egui_input.events.push(egui::Event::MouseWheel {
-            modifiers: dbg!(self.egui_modifiers),
+            modifiers: self.egui_modifiers,
             unit: egui::MouseWheelUnit::Line,
             delta,
             phase: egui::TouchPhase::Move,
