@@ -163,8 +163,10 @@ impl Painter {
         textures_delta: &egui::TexturesDelta,
         egui_ctx: &egui::Context,
     ) {
-        for (id, image_delta) in &textures_delta.set {
-            self.set_texture(ctx, *id, image_delta);
+        for (id, deltas) in &textures_delta.set {
+            for delta in deltas {
+                self.set_texture(ctx, *id, delta);
+            }
         }
 
         self.paint(ctx, primtives, egui_ctx);

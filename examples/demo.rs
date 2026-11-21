@@ -1,4 +1,7 @@
-use {egui_miniquad as egui_mq, miniquad as mq};
+use {
+    egui_miniquad as egui_mq, egui_system_font_frog::SystemFontProvider, miniquad as mq,
+    std::sync::Arc,
+};
 
 struct Stage {
     egui_mq: egui_mq::EguiMq,
@@ -13,9 +16,13 @@ struct Stage {
 impl Stage {
     fn new() -> Self {
         let mut mq_ctx = mq::window::new_rendering_backend();
+        let egui_mq = egui_mq::EguiMq::new(&mut *mq_ctx);
+        egui_mq
+            .egui_ctx()
+            .add_font_provider(Arc::new(SystemFontProvider::new()));
 
         Self {
-            egui_mq: egui_mq::EguiMq::new(&mut *mq_ctx),
+            egui_mq,
             show_egui_demo_windows: true,
             egui_demo_windows: Default::default(),
             color_test: Default::default(),
@@ -90,7 +97,7 @@ impl mq::EventHandler for Stage {
             });
 
             // Don't change zoom while dragging the slider
-            if !egui_ctx.is_using_pointer() {
+            if !egui_ctx.egui_is_using_pointer() {
                 egui_ctx.set_zoom_factor(self.zoom_factor);
             }
 

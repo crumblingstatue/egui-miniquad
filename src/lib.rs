@@ -136,6 +136,7 @@ pub struct EguiMq {
     pixels_per_point: f32,
     egui_ctx: egui::Context,
     egui_input: egui::RawInput,
+    egui_modifiers: egui::Modifiers,
     painter: painter::Painter,
     #[cfg(target_os = "macos")]
     clipboard: Option<copypasta::ClipboardContext>,
@@ -157,6 +158,7 @@ impl EguiMq {
             clipboard: init_clipboard(),
             shapes: None,
             textures_delta: Default::default(),
+            egui_modifiers: egui::Modifiers::default(),
         }
     }
 
@@ -171,7 +173,7 @@ impl EguiMq {
     pub fn run(
         &mut self,
         mq_ctx: &mut dyn mq::RenderingBackend,
-        mut run_ui: impl FnMut(&mut dyn mq::RenderingBackend, &egui::Context),
+        mut run_ui: impl FnMut(&mut dyn mq::RenderingBackend, &mut egui::Ui),
     ) {
         input::on_frame_start(&mut self.egui_input, &self.egui_ctx);
 
@@ -187,7 +189,7 @@ impl EguiMq {
 
         let full_output = self
             .egui_ctx
-            .run(self.egui_input.take(), |egui_ctx| run_ui(mq_ctx, egui_ctx));
+            .run_ui(self.egui_input.take(), |ui| run_ui(mq_ctx, ui));
 
         let egui::FullOutput {
             platform_output,
@@ -223,6 +225,9 @@ impl EguiMq {
                 }
                 egui::OutputCommand::OpenUrl(url) => {
                     quad_url::link_open(&url.url, url.new_tab);
+                }
+                egui::OutputCommand::TextSelectionSettled(string) => {
+                    eprintln!("Text selection settled: {string}");
                 }
             }
         }
@@ -267,12 +272,13 @@ impl EguiMq {
     /// Call from your [`miniquad::EventHandler`].
     pub fn mouse_wheel_event(&mut self, dx: f32, dy: f32) {
         let delta = egui::vec2(dx, dy);
-        let modifiers = self.egui_input.modifiers;
 
         self.egui_input.events.push(egui::Event::MouseWheel {
-            modifiers,
+            modifiers: dbg!(self.egui_modifiers),
             unit: egui::MouseWheelUnit::Line,
             delta,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
         });
     }
 
@@ -287,8 +293,8 @@ impl EguiMq {
             pos,
             button,
             pressed: true,
-            modifiers: self.egui_input.modifiers,
-        })
+            modifiers: self.egui_modifiers,
+        });
     }
 
     /// Call from your [`miniquad::EventHandler`].
@@ -303,15 +309,15 @@ impl EguiMq {
             pos,
             button,
             pressed: false,
-            modifiers: self.egui_input.modifiers,
-        })
+            modifiers: self.egui_modifiers,
+        });
     }
 
     /// Call from your [`miniquad::EventHandler`].
     pub fn char_event(&mut self, chr: char) {
         if input::is_printable_char(chr)
-            && !self.egui_input.modifiers.ctrl
-            && !self.egui_input.modifiers.mac_cmd
+            && !self.egui_modifiers.ctrl
+            && !self.egui_modifiers.mac_cmd
         {
             self.egui_input
                 .events
@@ -321,8 +327,9 @@ impl EguiMq {
 
     /// Call from your [`miniquad::EventHandler`].
     pub fn key_down_event(&mut self, keycode: mq::KeyCode, keymods: mq::KeyMods) {
-        let modifiers = input::egui_modifiers_from_mq_modifiers(keymods);
-        self.egui_input.modifiers = modifiers;
+        let mut modifiers = input::egui_modifiers_from_mq_modifiers(keymods);
+        modifier_shenanigans(&mut modifiers, keycode, true);
+        self.egui_modifiers = modifiers;
 
         if modifiers.command && keycode == mq::KeyCode::X {
             self.egui_input.events.push(egui::Event::Cut);
@@ -345,8 +352,9 @@ impl EguiMq {
 
     /// Call from your [`miniquad::EventHandler`].
     pub fn key_up_event(&mut self, keycode: mq::KeyCode, keymods: mq::KeyMods) {
-        let modifiers = input::egui_modifiers_from_mq_modifiers(keymods);
-        self.egui_input.modifiers = modifiers;
+        let mut modifiers = input::egui_modifiers_from_mq_modifiers(keymods);
+        modifier_shenanigans(&mut modifiers, keycode, false);
+        self.egui_modifiers = modifiers;
         if let Some(key) = input::egui_key_from_mq_key(keycode) {
             self.egui_input.events.push(egui::Event::Key {
                 key,
@@ -390,6 +398,21 @@ impl EguiMq {
         } else {
             None
         }
+    }
+}
+
+/// When there is a key event with sole ctrl/alt/shift, it will not appear in the modifiers,
+/// so we need to alter the modifiers manually to properly keep track of modifiers state.
+fn modifier_shenanigans(modifiers: &mut egui::Modifiers, keycode: mq::KeyCode, on: bool) {
+    if keycode == mq::KeyCode::LeftControl || keycode == mq::KeyCode::RightControl {
+        modifiers.ctrl = on;
+        modifiers.command = on;
+    }
+    if keycode == mq::KeyCode::LeftAlt || keycode == mq::KeyCode::RightAlt {
+        modifiers.alt = on;
+    }
+    if keycode == mq::KeyCode::LeftShift || keycode == mq::KeyCode::RightShift {
+        modifiers.shift = on;
     }
 }
 
